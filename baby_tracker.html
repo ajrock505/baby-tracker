@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#4F8BF7">
+<title>Baby Tracker</title>
+<style>
+  :root {
+    --bg: #F4F6FB;
+    --card: #FFFFFF;
+    --text: #1E2430;
+    --muted: #7A8195;
+    --line: #E4E8F0;
+    --accent: #4F8BF7;
+    --danger: #E05A6E;
+    --radius: 16px;
+    --feed: #3E7BFA;   --feed-bg: #EAF1FF;
+    --diaper: #D9822B; --diaper-bg: #FDF1E2;
+    --sleep: #7A5BD6;  --sleep-bg: #F0EBFB;
+    --medicine: #DB4B60;--medicine-bg: #FBE9EC;
+    --pump: #289EA4;   --pump-bg: #E3F4F5;
+    --mood: #4C9E55;   --mood-bg: #EAF5EC;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 16px;
+    min-height: 100dvh;
+  }
+  .app { max-width: 540px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; }
+
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+    padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  }
+  .header-row { display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 20px; margin: 0; font-weight: 700; }
+  .header-actions { display: flex; gap: 8px; }
+  .btn-small {
+    border: 1px solid var(--line); background: var(--card); color: var(--muted);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px; min-height: 36px; cursor: pointer;
+  }
+  .btn-small:active { background: var(--bg); }
+
+  main { flex: 1; padding: 16px 16px calc(84px + env(safe-area-inset-bottom)); }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ---- Log screen ---- */
+  .greeting { font-size: 14px; color: var(--muted); margin: 4px 0 14px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .tile {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 14px; cursor: pointer; text-align: left; min-height: 108px;
+    display: flex; flex-direction: column; justify-content: space-between; gap: 8px;
+    transition: transform .08s ease;
+  }
+  .tile:active { transform: scale(.97); }
+  .tile .icon { font-size: 30px; line-height: 1; background: var(--tbg, #eee); width: 52px; height: 52px;
+    border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+  .tile .name { font-weight: 600; font-size: 16px; }
+  .tile .hint { font-size: 12.5px; color: var(--muted); }
+
+  /* ---- Summary strip ---- */
+  .summary { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .chip {
+    background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 8px 14px; font-size: 13.5px; color: var(--text);
+  }
+  .chip b { font-weight: 700; }
+
+  /* ---- History ---- */
+  .day-label { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .06em; margin: 18px 2px 8px; }
+  .entry {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer;
+  }
+  .entry:active { background: #F2F4FA; }
+  .entry .eicon {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+  }
+  .entry .ebody { flex: 1; min-width: 0; }
+  .entry .etitle { font-weight: 600; font-size: 15px; }
+  .entry .edetail { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry .etime { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .empty { text-align: center; color: var(--muted); padding: 48px 16px; font-size: 15px; }
+
+  /* ---- Bottom nav ---- */
+  nav {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+    background: var(--card); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .nav-inner { max-width: 540px; margin: 0 auto; display: flex; }
+  .nav-btn {
+    flex: 1; border: none; background: none; padding: 10px 0 12px; cursor: pointer;
+    font-size: 13px; color: var(--muted); font-weight: 600;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 56px;
+  }
+  .nav-btn .nico { font-size: 22px; }
+  .nav-btn.active { color: var(--accent); }
+
+  /* ---- Bottom sheet ---- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(20,24,34,.4); z-index: 30;
+    opacity: 0; pointer-events: none; transition: opacity .2s ease;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 31;
+    background: var(--card); border-radius: 24px 24px 0 0;
+    transform: translateY(105%); transition: transform .25s cubic-bezier(.3,.8,.4,1);
+    max-width: 540px; margin: 0 auto;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .sheet.show { transform: translateY(0); }
+  .sheet-grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 10px auto 0; }
+  .sheet-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px 4px; }
+  .sheet-head .sicon { font-size: 26px; }
+  .sheet-head h2 { margin: 0; font-size: 18px; }
+  .sheet-body { padding: 8px 18px 14px; max-height: calc(100dvh - 220px); overflow-y: auto; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+  .field input, .field select, .field textarea {
+    width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--bg);
+    font-size: 16px; padding: 12px; color: var(--text); font-family: inherit;
+  }
+  .field textarea { min-height: 72px; resize: vertical; }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none; border-color: var(--accent); background: #fff;
+  }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .sheet-actions { display: flex; gap: 10px; padding: 0 18px 18px; }
+  .btn {
+    border: none; border-radius: 14px; padding: 15px; font-size: 16px; font-weight: 700;
+    cursor: pointer; min-height: 52px;
+  }
+  .btn-primary { flex: 1; background: var(--accent); color: #fff; }
+  .btn-primary:active { filter: brightness(.92); }
+  .btn-ghost { background: var(--bg); color: var(--text); }
+  .btn-danger { background: var(--medicine-bg); color: var(--medicine); }
+  .btn-danger:active { filter: brightness(.95); }
+
+  /* ---- Toast ---- */
+  #toast {
+    position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom));
+    transform: translateX(-50%) translateY(20px); z-index: 40;
+    background: #262B36; color: #fff; padding: 11px 18px; border-radius: 999px;
+    font-size: 14px; opacity: 0; pointer-events: none; transition: all .25s ease; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="header-row">
+      <h1>👶 Baby Tracker</h1>
+      <div class="header-actions">
+        <button class="btn-small" id="btnExport">Export</button>
+        <button class="btn-small" id="btnImport">Import</button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- LOG SCREEN -->
+    <section class="screen active" id="screenLog">
+      <div class="greeting" id="greeting"></div>
+      <div class="grid" id="activityGrid"></div>
+    </section>
+
+    <!-- HISTORY SCREEN -->
+    <section class="screen" id="screenHistory">
+      <div class="summary" id="summary"></div>
+      <div id="historyList"></div>
+    </section>
+  </main>
+
+  <nav>
+    <div class="nav-inner">
+      <button class="nav-btn active" data-screen="screenLog"><span class="nico">➕</span>Log</button>
+      <button class="nav-btn" data-screen="screenHistory"><span class="nico">📋</span>History</button>
+    </div>
+  </nav>
+</div>
+
+<!-- BOTTOM SHEET -->
+<div class="overlay" id="overlay"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true">
+  <div class="sheet-grab"></div>
+  <div class="sheet-head">
+    <span class="sicon" id="sheetIcon"></span>
+    <h2 id="sheetTitle"></h2>
+  </div>
+  <div class="sheet-body" id="sheetBody"></div>
+  <div class="sheet-actions" id="sheetActions"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+
+/* ================= Storage ================= */
+const LS_KEY = "babyTracker.v1";
+let events = loadEvents();
+
+function loadEvents() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+function saveEvents() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(events));
+  } catch (e) {
+    showToast("⚠️ Could not save (storage full?)");
+  }
+}
+
+/* ================= Activity config ================= */
+const TYPES = {
+  feed: {
+    name: "Feeding", icon: "🍼", color: "var(--feed)", bg: "var(--feed-bg)",
+    hint: "Breast or bottle",
+    fields: [
+      { key: "source", label: "Source", type: "select", options: ["Left breast", "Right breast", "Both breasts", "Bottle — formula", "Bottle — expressed", "Puree / food"], default: "Bottle — formula" },
+      { key: "amountMl", label: "Amount (mL) — optional", type: "number", inputmode: "decimal" },
+      { key: "minutes", label: "Minutes", type: "number", inputmode: "numeric" },
+    ]
+  },
+  diaper: {
+    name: "Diaper", icon: "🧷", color: "var(--diaper)", bg: "var(--diaper-bg)",
+    hint: "Pee / poop",
+    fields: [
+      { key: "kind", label: "Type", type: "select", options: ["Pee", "Poop", "Pee + poop"], default: "Poop" },
+      { key: "stoolColor", label: "Stool color", type: "select", options: ["N/A", "Yellow", "Green", "Brown", "Black", "White", "Red"] , default: "N/A"},
+      { key: "consistency", label: "Consistency", type: "select", options: ["N/A", "Watery", "Soft", "Formed", "Hard"], default: "N/A" },
+    ]
+  },
+  sleep: {
+    name: "Sleep", icon: "😴", color: "var(--sleep)", bg: "var(--sleep-bg)",
+    hint: "Naps & nights",
+    fields: [
+      { key: "hours", label: "Hours (e.g. 1.5)", type: "number", inputmode: "decimal" },
+      { key: "wakeReason", label: "Woke up", type: "select", options: ["—", "Happy", "Crying", "Hungry", "Wet diaper", "Gassy", "Feeling unwell", "Other"], default: "—" },
+    ]
+  },
+  medicine: {
+    name: "Medicine", icon: "💊", color: "var(--medicine)", bg: "var(--medicine-bg)",
+    hint: "Name & dose",
+    fields: [
+      { key: "name", label: "Medication *", type: "text", placeholder: "e.g. Acetaminophen", required: true },
+      { key: "dose", label: "Dose (e.g. 4 mL, 5 mg)", type: "text", placeholder: "Amount given" },
+    ]
+  },
+  pump: {
+    name: "Pumping", icon: "💧", color: "var(--pump)", bg: "var(--pump-bg)",
+    hint: "Side & amount",
+    fields: [
+      { key: "side", label: "Side", type: "select", options: ["Left", "Right", "Both"], default: "Both" },
+      { key: "amountMl", label: "Amount (mL)", type: "number", inputmode: "decimal" },
+    ]
+  },
+  mood: {
+    name: "Mood / Misc", icon: "😊", color: "var(--mood)", bg: "var(--mood-bg)",
+    hint: "Mood, temp, notes",
+    fields: [
+      { key: "mood", label: "Mood", type: "select", options: ["Happy", "Content", "Fussy", "Colicky", "Sleepy", "Under the weather"], default: "Content" },
+      { key: "tempF", label: "Temperature (°F) — optional", type: "text", inputmode: "decimal", placeholder: "e.g. 99.1" },
+    ]
+  }
+};
+const typeOrder = ["feed", "diaper", "sleep", "medicine", "pump", "mood"];
+
+/* ================= Helpers ================= */
+const $ = id => document.getElementById(id);
+function fmtTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+function fmtHours(h) {
+  if (h == null || isNaN(h)) return "?";
+  const hrs = Math.floor(h), mins = Math.round((h - hrs) * 60);
+  return mins ? `${hrs + (hrs ? "h " : "")}${mins}m` : `${hrs}h`;
+}
+function dayLabel(iso) {
+  const d = new Date(iso), now = new Date();
+  const sameDay = (a, b) => a.toDateString() === b.toDateString();
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (sameDay(d, now)) return "Today";
+  if (sameDay(d, yest)) return "Yesterday";
+  return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined });
+}
+function nowLocalInput() {
+  const d = new Date(); d.setSeconds(0, 0);
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function uid() { return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8); }
+
+let toastTimer;
+function showToast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+/* ================= Greeting ================= */
+function renderGreeting() {
+  const h = new Date().getHours();
+  const part = h < 5 ? "Night shift" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  $("greeting").textContent = `${part} — tap a card to log an activity.`;
+}
+
+/* ================= Log screen ================= */
+function renderGrid() {
+  const grid = $("activityGrid");
+  grid.innerHTML = "";
+  typeOrder.forEach(key => {
+    const t = TYPES[key];
+    const el = document.createElement("button");
+    el.className = "tile";
+    el.style.setProperty("--tbg", t.bg);
+    el.innerHTML = `<span class="icon">${t.icon}</span><span><div class="name">${t.name}</div><div class="hint">${t.hint}</div></span>`;
+    el.addEventListener("click", () => openSheet(key, null));
+    grid.appendChild(el);
+  });
+}
+
+/* ============ History screen ============ */
+function detailText(ev) {
+  const d = ev.data || {};
+  const notes = d.notes ? ` — ${d.notes}` : "";
+  switch (ev.type) {
+    case "feed": {
+      let s = d.source || "feed";
+      if (d.amountMl) s += ` · ${d.amountMl} mL`;
+      if (d.minutes) s += ` · ${d.minutes} min`;
+      return s + notes;
+    }
+    case "diaper": {
+      let s = d.kind || "diaper";
+      if (d.stoolColor && d.stoolColor !== "N/A") s += ` · ${d.stoolColor.toLowerCase()} stool`;
+      if (d.consistency && d.consistency !== "N/A") s += ` · ${d.consistency.toLowerCase()}`;
+      return s + notes;
+    }
+    case "sleep": {
+      let s = d.hours != null && d.hours !== "" ? fmtHours(parseFloat(d.hours)) : "sleep";
+      if (d.wakeReason && d.wakeReason !== "—") s += ` · woke: ${d.wakeReason.toLowerCase()}`;
+      return s + notes;
+    }
+    case "medicine": return `${d.name || "medicine"}${d.dose ? " · " + d.dose : ""}${notes}`;
+    case "pump": {
+      let s = (d.side || "pump") + " side";
+      if (d.amountMl) s += ` · ${d.amountMl} mL`;
+      return s + notes;
+    }
+    case "mood": {
+      let s = (d.mood || "mood");
+      if (d.tempF) s += ` · ${d.tempF}°F`;
+      return s + notes;
+    }
+    return "";
+  }
+}
+
+function renderHistory() {
+  const list = $("historyList");
+  list.innerHTML = "";
+  if (!events.length) {
+    list.innerHTML = `<div class="empty">No entries yet.<br>Tap a card on the Log tab to add one!</div>`;
+    $("summary").innerHTML = "";
+    return;
+  }
+
+  // Summary (today)
+  const today = new Date().toDateString();
+  const tevs = events.filter(e => new Date(e.start).toDateString() === today);
+  const feeds = tevs.filter(e => e.type === "feed").length;
+  const diaps = tevs.filter(e => e.type === "diaper").length;
+  const sleepH = tevs.filter(e => e.type === "sleep").reduce((a, e) => a + (parseFloat((e.data || {}).hours) || 0), 0);
+  const meds = tevs.filter(e => e.type === "medicine").length;
+  const parts = [];
+  if (feeds) parts.push(`🍼 <b>${feeds}</b> feed${feeds > 1 ? "s" : ""}`);
+  if (diaps) parts.push(`🧷 <b>${diaps}</b> diaper${diaps > 1 ? "s" : ""}`);
+  if (sleepH) parts.push(`😴 <b>${fmtHours(sleepH)}</b> asleep`);
+  if (meds) parts.push(`💊 <b>${meds}</b> med${meds > 1 ? "s" : ""}`);
+  $("summary").innerHTML = parts.length
+    ? parts.map(p => `<span class="chip">${p}</span>`).join("")
+    : `<span class="chip">Nothing logged today yet</span>`;
+
+  const sorted = events.slice().sort((a, b) => new Date(b.start) - new Date(a.start));
+  let lastDay = "";
+  for (const ev of sorted) {
+    const label = dayLabel(ev.start);
+    if (label !== lastDay) {
+      lastDay = label;
+      const h = document.createElement("div");
+      h.className = "day-label";
+      h.textContent = label;
+      list.appendChild(h);
+    }
+    const t = TYPES[ev.type] || { icon: "•", bg: "#eee" };
+    const row = document.createElement("div");
+    row.className = "entry";
+    row.innerHTML = `
+      <span class="eicon" style="background:${t.bg}">${t.icon}</span>
+      <span class="ebody">
+        <div class="etitle">${t.name}</div>
+        <div class="edetail">${escapeHtml(detailText(ev))}</div>
+      </span>
+      <span class="etime">${fmtTime(ev.start)}</span>`;
+    row.addEventListener("click", () => openSheet(ev.type, ev));
+    list.appendChild(row);
+  }
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ================= Bottom sheet ================= */
+let openType = null, editingId = null;
+
+function openSheet(type, ev) {
+  openType = type;
+  editingId = ev ? ev.id : null;
+  const t = TYPES[type];
+  $("sheetIcon").textContent = t.icon;
+  $("sheetTitle").textContent = ev ? `Edit ${t.name}` : `New ${t.name}`;
+
+  const body = $("sheetBody");
+  body.innerHTML = "";
+
+  // Time field
+  body.appendChild(makeField("When", "start", "input",
+    ev ? toLocalInput(ev.start) : nowLocalInput(), { type: "datetime-local" }));
+
+  t.fields.forEach(f => {
+    let el;
+    if (f.type === "select") {
+      el = makeField(f.label, f.key, "select", f.default, { options: f.options });
+    } else if (f.type === "number") {
+      el = makeField(f.label, f.key, "input", null, { type: "number", inputmode: f.inputmode || "numeric", placeholder: f.placeholder || "" , required: f.required});
+    } else {
+      el = makeField(f.label, f.key, "input", null, { type: "text", placeholder: f.placeholder || "", inputmode: "text" });
+    }
+    if (ev && ev.data && ev.data[f.key] != null) el.value = ev.data[f.key];
+    if (f.required && !el.value) el.required = true;
+    body.appendChild(el);
+  });
+
+  // Notes on every type
+  const nf = makeField("Notes (optional)", "notes", "textarea", null, {});
+  if (ev) nf.value = (ev.data && ev.data.notes) || "";
+  body.appendChild(nf);
+
+  // Actions
+  const actions = $("sheetActions");
+  actions.innerHTML = "";
+  const done = document.createElement("button");
+  done.className = "btn btn-primary";
+  done.textContent = "Save";
+  done.addEventListener("click", () => saveSheet());
+  actions.appendChild(done);
+
+  const cancel = document.createElement("button");
+  cancel.className = "btn btn-ghost";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", closeSheet);
+  actions.appendChild(cancel);
+
+  if (ev) {
+    const del = document.createElement("button");
+    del.className = "btn btn-danger";
+    del.textContent = "🗑";
+    del.addEventListener("click", deleteEvent);
+    actions.appendChild(del);
+  }
+
+  $("overlay").classList.add("show");
+  $("sheet").classList.add("show");
+  document.body.style.overflow = "hidden";
+}
+
+function makeField(label, key, kind, value, attrs) {
+  const wrap = document.createElement("div");
+  wrap.className = "field";
+  const lab = document.createElement("label");
+  lab.textContent = label;
+  let el;
+  if (kind === "select") {
+    el = document.createElement("select");
+    (attrs.options || []).forEach(opt => {
+      const o = document.createElement("option");
+      o.value = opt; o.textContent = opt;
+      el.appendChild(o);
+    });
+    if (value) el.value = value;
+  } else if (kind === "textarea") {
+    el = document.createElement("textarea");
+    el.placeholder = attrs.placeholder || "";
+  } else {
+    el = document.createElement("input");
+    el.type = attrs.type || "text";
+    if (attrs.inputmode) el.inputmode = attrs.inputmode;
+    if (attrs.placeholder) el.placeholder = attrs.placeholder;
+    if (value) el.value = value;
+  }
+  el.dataset.key = key;
+  wrap.appendChild(lab);
+  wrap.appendChild(el);
+  return wrap;
+}
+
+function toLocalInput(iso) {
+  const d = new Date(iso);
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function saveSheet() {
+  const body = $("sheetBody");
+  const data = {};
+  body.querySelectorAll("[data-key]").forEach(el => {
+    if (el.dataset.key === "start") return;
+    data[el.dataset.key] = el.value.trim();
+  });
+  // Drop empty optionals for cleanliness
+  Object.keys(data).forEach(k => { if (data[k] === "") delete data[k]; });
+
+  // Validate required
+  const t = TYPES[openType];
+  for (const f of t.fields) {
+    if (f.required && !(data[f.key] && String(data[f.key]).trim())) {
+      showToast(`⚠️ ${f.label} is required`);
+      return;
+    }
+  }
+  const startEl = body.querySelector('[data-key="start"]');
+  if (!startEl || !startEl.value) { showToast("⚠️ Please set a time"); return; }
+  const start = new Date(startEl.value).toISOString();
+
+  if (editingId) {
+    const idx = events.findIndex(e => e.id === editingId);
+    if (idx !== -1) events[idx] = { id: events[idx].id, type: openType, start, data };
+    showToast("✅ Entry updated");
+  } else {
+    events.push({ id: uid(), type: openType, start, data });
+    showToast("✅ Logged");
+  }
+  saveEvents();
+  renderHistory();
+  closeSheet();
+  // switch to history so user sees it? No — stay put; toast confirms.
+}
+
+function deleteEvent() {
+  if (!editingId) return;
+  if (!confirm("Delete this entry?")) return;
+  events = events.filter(e => e.id !== editingId);
+  saveEvents();
+  renderHistory();
+  closeSheet();
+  showToast("🗑 Entry deleted");
+}
+
+function closeSheet() {
+  $("overlay").classList.remove("show");
+  $("sheet").classList.remove("show");
+  document.body.style.overflow = "";
+  openType = null; editingId = null;
+}
+
+/* ================= Tabs ================= */
+document.querySelectorAll(".nav-btn[data-screen]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    $(btn.dataset.screen).classList.add("active");
+    if (btn.dataset.screen === "screenHistory") renderHistory();
+  });
+});
+
+/* ================= Export / Import ================= */
+$("btnExport").addEventListener("click", () => {
+  if (!events.length) { showToast("Nothing to export yet"); return; }
+  const dl = events.slice().sort((a, b) => new Date(a.start) - new Date(b.start));
+  const blob = new Blob([JSON.stringify({ app: "baby-tracker", version: 1, exportedAt: new Date().toISOString(), events: dl }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  a.href = URL.createObjectURL(blob);
+  a.download = `baby-tracker-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  showToast(`📤 Exported ${dl.length} entr${dl.length === 1 ? "y" : "ies"}`);
+});
+
+$("btnImport").addEventListener("click", () => $("importFile").click());
+$("importFile").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      const arr = Array.isArray(parsed) ? parsed : parsed.events;
+      if (!Array.isArray(arr)) throw new Error("bad format");
+      let added = 0;
+      const existing = new Set(events.map(x => x.id));
+      for (const ev of arr) {
+        if (!ev || !ev.type || !ev.start || !ev.id) continue;
+        if (existing.has(ev.id)) continue;
+        ev.data = ev.data || {};
+        events.push(ev);
+        existing.add(ev.id);
+        added++;
+      }
+      saveEvents();
+      renderHistory();
+      showToast(added ? `📥 Imported ${added} entr${added === 1 ? "y" : "ies"}` : "No new entries found");
+    } catch (err) {
+      showToast("⚠️ Import failed — not a valid tracker file");
+    }
+  };
+  reader.readAsText(file);
+});
+
+/* ================= Init ================= */
+renderGrid();
+renderGreeting();
+renderHistory();
+</script>
+</body>
+</html>
